@@ -1,0 +1,80 @@
+# This CloudBuild file will build and deploy the application based on 
+
+# This will stop the need to push commits to the k8s-admin repo to deploy the application 
+
+---
+# substitition variables can be defined in the trigger definition
+substitutions:
+  _TARGET_CLUSTER: preproduction-cluster
+  _TARGET_REGION: us-central1-a
+  _TARGET_NAMESPACE: default
+  _HELM_RELEASE_NAME: sefaria-preprod
+  _IMAGE__WEB: sefaria-web-test
+  _IMAGE__NODEJS: sefaria-node-test
+  _IMAGE__NGINX: sefaria-asset-test
+  _GCLOUD_PROJECT: production-deployment
+
+options:
+  machineType: N1_HIGHCPU_8
+
+steps:  
+
+  #
+  # Build artifacts
+  #
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "-f", "build/web/Dockerfile", "."]
+    id: web_container
+    wait_for: [ "-" ]
+  
+  # TODO: Find a better way of passing in SRC_IMG
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-asset-test:$SHORT_SHA", "-f", "build/nginx/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "."]
+    id: nginx_container
+    wait_for:
+      - web_container
+
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-node-test:$SHORT_SHA", "-f", "build/node/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "."]
+    id: nodejs_container
+    wait_for:
+      - web_container
+
+  #
+  # Deploy to Kubernetes
+  #
+
+  # Clone k8s-admin -- get the `lorenzo/deploy-python3' branch
+  - name: "gcr.io/cloud-builders/git"
+    args: ['clone', 'https://source.developers.google.com/p/production-deployment/r/k8s-admin', '--branch', 'master', '--single-branch']
+    id: k8s-admin_clone
+    wait_for: [ "-" ]
+
+  # Idempotently Install/Upgrade the Helm Release
+  - name: "gcr.io/production-deployment/cloudbuild-helm:v3.0.2"
+    dir: k8s-admin/v2
+    entrypoint: helm
+    args: upgrade -i ${_HELM_RELEASE_NAME} ./charts/sefaria --namespace ${_TARGET_NAMESPACE} --debug
+    args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_TARGET_REGION}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_TARGET_CLUSTER}'
+    wait_for:
+      - k8s-admin_clone
+      - web_container
+      - nginx_container
+      - nodejs_container
+
+  #
+  # Post-Deploy Tasks
+  #
+  # Flush Varnish -- Helm Post-Deploy Hook
+  # Purge CloudFlare -- Helm Post-Deploy Hook
+  # Prime Webserver Cache -- Helm Post-Deploy Hook or import into application (do on application startup)
+  # Send Slack Notification -- Probably via Pub/Sub message sent to Slack
+    
+images:
+  - "gcr.io/production-deployment/sefaria-asset-test:$SHORT_SHA"
+  - "gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA"
+  - "gcr.io/production-deployment/sefaria-node-test:$SHORT_SHA"
+...
