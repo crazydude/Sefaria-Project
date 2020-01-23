@@ -53,7 +53,7 @@ steps:
   # Idempotently Install/Upgrade the Helm Release
   - name: "gcr.io/production-deployment/cloudbuild-helm:v3.0.2"
     dir: k8s-admin/v2
-    args: ["version", "--client", "&&", "helm", "upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
+    args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
     # entrypoint: helm
     # args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
     env:
