@@ -54,7 +54,6 @@ steps:
   - name: "gcr.io/production-deployment/cloudbuild-helm:v3.0.2"
     dir: k8s-admin/v2
     entrypoint: helm
-    args: upgrade -i ${_HELM_RELEASE_NAME} ./charts/sefaria --namespace ${_TARGET_NAMESPACE} --debug
     args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
     env:
       - 'CLOUDSDK_COMPUTE_ZONE=${_TARGET_REGION}'
