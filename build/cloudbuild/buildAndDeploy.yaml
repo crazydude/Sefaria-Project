@@ -60,6 +60,7 @@ steps:
       - 'CLOUDSDK_COMPUTE_ZONE=${_TARGET_REGION}'
       - 'CLOUDSDK_CONTAINER_CLUSTER=${_TARGET_CLUSTER}'
       - 'KUBECTL_VERSION=1.14'
+      - 'KUBECONFIG=/root/.kube/config'
     wait_for:
       - k8s-admin_clone
       - web_container
