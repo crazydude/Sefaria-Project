@@ -16,6 +16,8 @@ steps:
       - "--dockerfile=build/web/Dockerfile"
       - "--context=./"
       - "--destination=gcr.io/production-deployment/sefaria-web-test-kaniko:$SHORT_SHA"
+      - "--cache=true"
+      - "--cache-ttl=24h"
     id: web_container
     wait_for: [ "-" ]
 ...
