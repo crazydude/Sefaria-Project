@@ -53,11 +53,13 @@ steps:
   # Idempotently Install/Upgrade the Helm Release
   - name: "gcr.io/production-deployment/cloudbuild-helm:v3.0.2"
     dir: k8s-admin/v2
-    entrypoint: helm
-    args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
+    args: ["version", "--client", "&&", "helm", "upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
+    # entrypoint: helm
+    # args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
     env:
       - 'CLOUDSDK_COMPUTE_ZONE=${_TARGET_REGION}'
       - 'CLOUDSDK_CONTAINER_CLUSTER=${_TARGET_CLUSTER}'
+      - 'KUBECTL_VERSION=1.14'
     wait_for:
       - k8s-admin_clone
       - web_container
