@@ -5,14 +5,16 @@
 ---
 # substitition variables can be defined in the trigger definition
 substitutions:
-  _TARGET_CLUSTER: preproduction-cluster
-  _TARGET_REGION: us-central1-a
-  _TARGET_NAMESPACE: default
-  _HELM_RELEASE_NAME: sefaria-preprod
-  _IMAGE__WEB: sefaria-web-test
-  _IMAGE__NODEJS: sefaria-node-test
-  _IMAGE__NGINX: sefaria-asset-test
   _GCLOUD_PROJECT: production-deployment
+  _HELM_RELEASE_NAME_SLUG: preprod
+  _HELM_RELEASE_NAME: sefaria-preprod
+  _IMAGE__NGINX: sefaria-asset-test  
+  _IMAGE__NODEJS: sefaria-node-test
+  _IMAGE__TAG: default-tag # $SHORT_SHA or $TAG_NAME
+  _IMAGE__WEB: sefaria-web-test
+  _TARGET_CLUSTER: preproduction-cluster
+  _TARGET_NAMESPACE: default
+  _TARGET_REGION: us-central1-a
 
 options:
   machineType: N1_HIGHCPU_8
@@ -23,19 +25,19 @@ steps:
   # Build artifacts
   #
   - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "-f", "build/web/Dockerfile", "."]
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-web-test:${_IMAGE__TAG}", "-f", "build/web/Dockerfile", "."]
     id: web_container
     wait_for: [ "-" ]
   
   # TODO: Find a better way of passing in SRC_IMG
   - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/production-deployment/sefaria-asset-test:$SHORT_SHA", "-f", "build/nginx/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "."]
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-asset-test:${_IMAGE__TAG}", "-f", "build/nginx/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:${_IMAGE__TAG}", "."]
     id: nginx_container
     wait_for:
       - web_container
 
   - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/production-deployment/sefaria-node-test:$SHORT_SHA", "-f", "build/node/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA", "."]
+    args: ["build", "-t", "gcr.io/production-deployment/sefaria-node-test:${_IMAGE__TAG}", "-f", "build/node/Dockerfile", "--build-arg", "SRC_IMG=gcr.io/production-deployment/sefaria-web-test:${_IMAGE__TAG}", "."]
     id: nodejs_container
     wait_for:
       - web_container
@@ -52,10 +54,9 @@ steps:
 
   # Idempotently Install/Upgrade the Helm Release
   - name: "gcr.io/production-deployment/cloudbuild-helm:v3.0.2"
+    id: install_chart
     dir: k8s-admin/v2
-    args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
-    # entrypoint: helm
-    # args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--debug"]
+    args: ["upgrade", "-i", "${_HELM_RELEASE_NAME}", "./charts/sefaria", "--namespace", "${_TARGET_NAMESPACE}", "--set-string", "releaseSlug=${_HELM_RELEASE_NAME_SLUG},releaseImageTag=${_IMAGE__TAG}", "--debug"]
     env:
       - 'CLOUDSDK_COMPUTE_ZONE=${_TARGET_REGION}'
       - 'CLOUDSDK_CONTAINER_CLUSTER=${_TARGET_CLUSTER}'
@@ -76,7 +77,7 @@ steps:
   # Send Slack Notification -- Probably via Pub/Sub message sent to Slack
     
 images:
-  - "gcr.io/production-deployment/sefaria-asset-test:$SHORT_SHA"
-  - "gcr.io/production-deployment/sefaria-web-test:$SHORT_SHA"
-  - "gcr.io/production-deployment/sefaria-node-test:$SHORT_SHA"
+  - "gcr.io/production-deployment/sefaria-asset-test:${_IMAGE__TAG}"
+  - "gcr.io/production-deployment/sefaria-web-test:${_IMAGE__TAG}"
+  - "gcr.io/production-deployment/sefaria-node-test:${_IMAGE__TAG}"
 ...
